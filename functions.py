@@ -4,14 +4,17 @@ import datetime
 import pyttsx3
 import speech_recognition as sr
 import logging
+import subprocess
 
 def speak(text):
+    # Озвучивание текста
     engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
     logging.info(f"Вероника сказала: {text}")
 
 def listen():
+    # Распознавание речи
     recognizer = sr.Recognizer()
     with sr.Microphone() as source:
         logging.info("Слушаю...")
@@ -28,6 +31,7 @@ def listen():
             return ""
 
 def execute_command(command):
+    # Выполнение команд
     logging.debug(f"Команда: {command}")
     if "открой браузер" in command:
         speak("Открываю браузер")
@@ -37,7 +41,7 @@ def execute_command(command):
         speak("Включаю музыку")
         os.system("start wmplayer")
         logging.info("Команда выполнена: Включить музыку")
-    elif "сколько времени" in command:
+    elif "который час" in command:
         now = datetime.datetime.now().strftime("%H:%M")
         speak(f"Сейчас {now}")
         logging.info(f"Команда выполнена: Сообщить время ({now})")
@@ -67,6 +71,7 @@ def execute_command(command):
         logging.warning("Команда не распознана")
 
 def check_system():
+    # Проверка системы
     try:
         engine = pyttsx3.init()
         recognizer = sr.Recognizer()
@@ -77,3 +82,16 @@ def check_system():
     except Exception as e:
         logging.error(f"Ошибка системы: {e}")
         return False
+
+def check_updates():
+    # Проверка обновлений библиотек
+    try:
+        result = subprocess.run(['pip', 'list', '--outdated'], capture_output=True, text=True)
+        if result.stdout:
+            speak("Обнаружены обновления для библиотек")
+            logging.info("Обнаружены обновления для библиотек:\n" + result.stdout)
+        else:
+            speak("Все библиотеки обновлены")
+            logging.info("Все библиотеки обновлены")
+    except Exception as e:
+        logging.error(f"Ошибка проверки обновлений: {e}")
