@@ -5,6 +5,10 @@ import pyttsx3
 import speech_recognition as sr
 import logging
 import subprocess
+from azure.cognitiveservices.speech import SpeechConfig, SpeechRecognizer, AudioConfig, ResultReason
+from cryptography.fernet import Fernet
+import requests
+import matplotlib.pyplot as plt
 
 def speak(text):
     # Озвучивание текста
@@ -73,11 +77,22 @@ def execute_command(command):
 def check_system():
     # Проверка системы
     try:
+        logging.info("Проверка pyttsx3")
         engine = pyttsx3.init()
+        logging.info("pyttsx3 успешно инициализирован")
+        
+        logging.info("Проверка SpeechRecognition")
         recognizer = sr.Recognizer()
         with sr.Microphone() as source:
             recognizer.listen(source, timeout=1)
-        logging.info("Система проверки пройдена успешно")
+        logging.info("SpeechRecognition успешно инициализирован")
+        
+        logging.info("Проверка azure-cognitiveservices-speech")
+        speech_config = SpeechConfig(subscription="YourSubscriptionKey", region="YourServiceRegion")
+        audio_config = AudioConfig(use_default_microphone=True)
+        recognizer = SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+        logging.info("azure-cognitiveservices-speech успешно инициализирован")
+        
         return True
     except Exception as e:
         logging.error(f"Ошибка системы: {e}")
@@ -95,3 +110,41 @@ def check_updates():
             logging.info("Все библиотеки обновлены")
     except Exception as e:
         logging.error(f"Ошибка проверки обновлений: {e}")
+
+def recognize_speaker():
+    # Пример распознавания речи с помощью Microsoft Azure
+    speech_config = SpeechConfig(subscription="YourSubscriptionKey", region="YourServiceRegion")
+    audio_config = AudioConfig(use_default_microphone=True)
+    recognizer = SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+
+    result = recognizer.recognize_once()
+
+    if result.reason == ResultReason.RecognizedSpeech:
+        logging.info(f"Распознан текст: {result.text}")
+        speak("Пользователь распознан")
+    else:
+        logging.error("Не удалось распознать текст")
+        speak("Не удалось распознать текст")
+
+def encrypt_data(data):
+    # Шифрование данных
+    key = Fernet.generate_key()
+    cipher_suite = Fernet(key)
+    encrypted_data = cipher_suite.encrypt(data.encode())
+    logging.info("Данные зашифрованы")
+    return encrypted_data, key
+
+def decrypt_data(encrypted_data, key):
+    # Расшифровка данных
+    cipher_suite = Fernet(key)
+    decrypted_data = cipher_suite.decrypt(encrypted_data).decode()
+    logging.info("Данные расшифрованы")
+    return decrypted_data
+
+def detect_anomalies(data):
+    # Обнаружение аномалий
+    # Простой пример визуализации данных с использованием matplotlib
+    plt.plot(data)
+    plt.title("Анализ данных")
+    plt.show()
+    logging.info("Анализ данных завершен")

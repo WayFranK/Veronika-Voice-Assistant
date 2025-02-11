@@ -1,4 +1,4 @@
-from functions import speak, listen, execute_command, check_system, check_updates
+from functions import speak, listen, execute_command, check_system, check_updates, recognize_speaker, encrypt_data, decrypt_data, detect_anomalies
 import logging
 from config import setup_logging
 
@@ -8,6 +8,7 @@ setup_logging()
 def main():
     logging.info("Запуск программы")
     speak("Привет! Я Вероника. Чем могу помочь?")
+    recognize_speaker()  # Аутентификация пользователя
     if check_system():
         speak("Система готова к работе")
         logging.info("Система готова к работе")
