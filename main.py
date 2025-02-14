@@ -76,7 +76,7 @@ def process_command(command):
     elif 'поиск' in command:
         query = command.replace('поиск', '').strip()
         speak(f"Ищу {query} в интернете.")
-        webbrowser.open(f"https://www.google.com/search?q={query}")
+        webbrowser.open(f"https://ya.ru//search?q={query}")
     elif 'расскажи шутку' in command:
         tell_joke()
     else:
