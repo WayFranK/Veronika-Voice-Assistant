@@ -1,114 +1,154 @@
-import speech_recognition as sr
-import pyttsx3
-import os
-import json
-import requests
-import webbrowser
 import datetime
+import os
 import random
-from vosk import Model, KaldiRecognizer
+import re
+import webbrowser
+from typing import Dict, List
 
-# Настройка голосового синтезатора
-engine = pyttsx3.init()
-engine.setProperty('rate', 150)
-engine.setProperty('volume', 0.9)
+import pyttsx3
+import speech_recognition as sr
+from colorama import Fore, Back, Style, init
 
-# Инициализация модели Vosk
-model = Model("vosk-model-small-ru-0.22")
-recognizer = KaldiRecognizer(model, 48000)
 
-API_KEY = "sk-1be11ebf4d8942f59804f01b9fe4feac"
-API_URL = "https://api.deepseek.com/process"
+class VeronicaAssistant:
+    def __init__(self):
+        init(autoreset=True)
+        self.engine = self._setup_tts_engine()
+        self.recognizer = sr.Recognizer()
+        self.commands = self._load_commands()
+        self.urls = self._load_urls()
 
-def speak(text):
-    engine.say(text)
-    engine.runAndWait()
+    @staticmethod
+    def _setup_tts_engine() -> pyttsx3.Engine:
+        engine = pyttsx3.init()
+        engine.setProperty('rate', 150)
+        engine.setProperty('volume', 0.9)
+        return engine
 
-# Функция для распознавания речи
-def listen_command():
-    r = sr.Recognizer()
-    mic = sr.Microphone()
-    with mic as source:
-        r.adjust_for_ambient_noise(source)
-        print("Слушаю...")
-        audio = r.listen(source)
-    
-    data = audio.get_wav_data()
-    if recognizer.AcceptWaveform(data):
-        result = json.loads(recognizer.Result())
-        return result.get("text", "").lower()
-    return ""
+    def _load_urls(self) -> Dict[str, str | List[str]]:
+        return {
+            'twitch': 'https://www.twitch.tv',
+            'my_twitch': 'https://www.twitch.tv/michal_ivanich',
+            'vk_music': 'https://vk.com/music/playlist/-88066503_56557078',
+            'music': [
+                'https://www.youtube.com/watch?v=ca0775s0TxM',
+                'https://www.youtube.com/watch?v=M5QY2_8704o',
+                'https://www.youtube.com/watch?v=qwHyfcCvBFQ'
+            ]
+        }
 
-# Функция для обработки текста через DeepSeek API
-def process_text_with_deepseek(text):
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {"text": text}
-    
-    try:
-        response = requests.post(API_URL, headers=headers, json=data)
-        print("Ответ от сервера:", response.text)  # Вывод ответа для отладки
-        response.raise_for_status()
-        response_json = response.json()
-        return response_json.get("result", "Нет ответа от API")
-    except json.decoder.JSONDecodeError:
-        return "Ошибка: сервер вернул некорректный JSON"
-    except requests.exceptions.RequestException as e:
-        return f"Ошибка запроса: {str(e)}"
+    def _load_commands(self) -> Dict[str, str]:
+        return {
+            'привет': self._greet,
+            'что ты можешь': self._show_capabilities,
+            'открой google': lambda: self._open_url('https://google.com', 'Google'),
+            'открой youtube': lambda: self._open_url('https://youtube.com', 'YouTube'),
+            'запусти музыку': self._play_music,
+            'вк музыка': lambda: self._open_url(self.urls['vk_music'], 'ВК Музыка'),
+            'twitch': self._handle_twitch,
+            'поиск': self._search_web,
+            'время': self._tell_time,
+            'закрой': self._close_application,
+            'шутка': self._tell_joke
+        }
 
-# Функция для рассказа шуток
-def tell_joke():
-    jokes = [
-        "Почему программисты не ходят в лес? Потому что там много багов.",
-        "Какой язык программирования предпочитают океаны? Си.",
-        "Почему питоны никогда не устают? Потому что они всегда остаются гибкими."
-    ]
-    speak(random.choice(jokes))
+    def speak(self, text: str) -> None:
+        cleaned_text = re.sub(r'[^\w\s,\.!?-]', '', text)
+        self.engine.say(cleaned_text)
+        self.engine.runAndWait()
+        print(Fore.BLUE + f"Ответ: {text}")
 
-# Функция для получения текущего времени
-def get_current_time():
-    now = datetime.datetime.now()
-    speak(f"Сейчас {now.hour} часов и {now.minute} минут.")
+    def listen_command(self) -> str:
+        with sr.Microphone() as source:
+            print(Fore.GREEN + "Слушаю... 🎧")
+            self.recognizer.adjust_for_ambient_noise(source)
+            
+            try:
+                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=8)
+            except sr.WaitTimeoutError:
+                self.speak("Не услышала ваш голос. Попробуйте еще раз. 🎤")
+                return ""
 
-# Функция для открытия приложения
-def open_application(app_name):
-    if app_name == 'блокнот':
-        os.system('notepad.exe')
-        speak("Блокнот открыт.")
-    else:
-        speak(f"Не могу открыть приложение {app_name}.")
+        try:
+            command = self.recognizer.recognize_google(audio, language="ru-RU").lower()
+            print(Fore.YELLOW + f"Вы сказали: {command} 🗣️")
+            return command
+        except sr.UnknownValueError:
+            self.speak("Я не поняла вашу команду. 🤔")
+        except sr.RequestError as e:
+            self.speak("Проблемы с соединением. Проверьте интернет. 🌐")
+            print(Fore.RED + f"Ошибка сервиса: {str(e)}")
+        return ""
 
-# Функция для завершения работы программы
-def close_program():
-    speak("Завершаю работу. До свидания!")
-    exit()
+    def process_command(self, command: str) -> None:
+        for key in self.commands:
+            if key in command:
+                self.commands[key](command)
+                return
+        
+        self.speak("Не распознала команду 😔")
 
-# Обработка команд
-def process_command(command):
-    if 'привет' in command:
-        speak("Привет! Как я могу помочь?")
-    elif 'поиск' in command:
-        query = command.replace('поиск', '').strip()
-        speak(f"Ищу {query} в интернете.")
-        webbrowser.open(f"https://ya.ru//search?q={query}")
-    elif 'расскажи шутку' in command:
-        tell_joke()
-    elif 'время' in command:
-        get_current_time()
-    elif 'открыть' in command:
-        app_name = command.replace('открыть', '').strip()
-        open_application(app_name)
-    elif 'закрыть программу' in command:
-        close_program()
-    else:
-        deepseek_result = process_text_with_deepseek(command)
-        speak(f"DeepSeek отвечает: {deepseek_result}")
+    def _greet(self, _: str = "") -> None:
+        self.speak("Привет! Как я могу помочь? 🤖")
+
+    def _show_capabilities(self, _: str = "") -> None:
+        self.speak("Я могу открывать сайты, искать информацию, говорить время и рассказывать шутки! 😊")
+
+    def _open_url(self, url: str, service_name: str) -> None:
+        webbrowser.open(url)
+        self.speak(f"Открываю {service_name} 🌐")
+
+    def _play_music(self, _: str = "") -> None:
+        webbrowser.open(random.choice(self.urls['music']))
+        self.speak("Включаю музыку 🎶")
+
+    def _handle_twitch(self, command: str) -> None:
+        if 'канал' in command:
+            self._open_url(self.urls['my_twitch'], "ваш Twitch")
+        else:
+            self._open_url(self.urls['twitch'], "Twitch")
+
+    def _search_web(self, command: str) -> None:
+        query = command.split('поиск', 1)[1].strip()
+        webbrowser.open(f"https://google.com/search?q={query}")
+        self.speak(f"Ищу {query} 🔍")
+
+    def _tell_time(self, _: str = "") -> None:
+        time = datetime.datetime.now().strftime("%H:%M")
+        self.speak(f"Сейчас {time} ⏰")
+
+    def _close_application(self, command: str) -> None:
+        if 'браузер' in command:
+            os.system("taskkill /im chrome.exe /f")
+            self.speak("Закрываю браузер 🖥️")
+        else:
+            self.speak("Не могу найти приложение для закрытия 😟")
+
+    def _tell_joke(self, _: str = "") -> None:
+        jokes = [
+            "Почему программисты не ходят в лес? Потому что там много багов. 🐞",
+            "Какой язык программирования предпочитают океаны? Си. 🌊",
+            "Почему питоны никогда не устают? Потому что они всегда остаются гибкими. 🐍",
+            "Почему Java-программисты всегда носят очки? Потому что они не могут C#. 👓",
+            "Что говорят разработчики, когда их код работает? Это магия! ✨"
+        ]
+        joke = random.choice(jokes)
+        self.speak(joke)
+        print(Fore.CYAN + f"Шутка: {joke} 😄")
+
 
 if __name__ == "__main__":
-    speak("Голосовой помощник запущен. Готов к работе.")
-    while True:
-        command = listen_command()
-        if command:
-            process_command(command)
+    assistant = VeronicaAssistant()
+    assistant.speak("Голосовой помощник Вероника активирован! Чем могу помочь?")
+    print(Fore.CYAN + "Голосовой помощник Вероника активирован!")
+    
+    try:
+        while True:
+            command = assistant.listen_command()
+            if command:
+                assistant.process_command(command)
+    except KeyboardInterrupt:
+        assistant.speak("Выключаюсь! До свидания! 👋")
+    except Exception as e:
+        print(Fore.RED + f"Критическая ошибка: {str(e)}")
+        assistant.speak("Произошла критическая ошибка, экстренное выключение! ⚠️")
