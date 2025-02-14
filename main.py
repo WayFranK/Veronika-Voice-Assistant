@@ -3,12 +3,11 @@ import os
 import random
 import re
 import webbrowser
+import socket
 from typing import Dict, List, Callable
-
 import pyttsx3
 import speech_recognition as sr
 from colorama import Fore, init
-
 
 class VeronicaAssistant:
     def __init__(self):
@@ -17,6 +16,7 @@ class VeronicaAssistant:
         self.recognizer = sr.Recognizer()
         self.commands = self._load_commands()
         self.urls = self._load_urls()
+        socket.setdefaulttimeout(12)
 
     @staticmethod
     def _setup_tts_engine() -> pyttsx3.Engine:
@@ -64,24 +64,49 @@ class VeronicaAssistant:
     def listen_command(self) -> str:
         with sr.Microphone() as source:
             print(Fore.GREEN + "Слушаю... 🎧")
-            self.recognizer.adjust_for_ambient_noise(source)
+            self.recognizer.adjust_for_ambient_noise(source, duration=1)
             
             try:
-                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=8)
+                audio = self.recognizer.listen(
+                    source, 
+                    phrase_time_limit=8
+                )
             except sr.WaitTimeoutError:
                 self.speak("Не услышала ваш голос. Попробуйте еще раз. 🎤")
                 return ""
 
-        try:
-            command = self.recognizer.recognize_google(audio, language="ru-RU").lower()
-            print(Fore.YELLOW + f"Вы сказали: {command} 🗣️")
-            return command
-        except sr.UnknownValueError:
-            self.speak("Я не поняла вашу команду. 🤔")
-        except sr.RequestError as e:
-            self.speak("Проблемы с соединением. Проверьте интернет. 🌐")
-            print(Fore.RED + f"Ошибка сервиса: {str(e)}")
+        for attempt in range(3):
+            try:
+                command = self.recognizer.recognize_google(
+                    audio,
+                    language="ru-RU",
+                    show_all=False
+                ).lower()
+                print(Fore.YELLOW + f"Вы сказали: {command} 🗣️")
+                return command
+            except sr.UnknownValueError:
+                self.speak("Я не поняла вашу команду. 🤔")
+                return ""
+            except sr.RequestError as e:
+                if attempt < 2:
+                    print(Fore.YELLOW + f"Повторная попытка распознавания ({attempt+1}/3)")
+                    continue
+                self._handle_network_error(e)
+            except Exception as e:
+                print(Fore.RED + f"Неожиданная ошибка: {str(e)}")
         return ""
+
+    def _handle_network_error(self, error: Exception):
+        error_msg = str(error).lower()
+        if '10060' in error_msg or 'timed out' in error_msg:
+            self.speak("Ошибка соединения: превышено время ожидания. Проверьте интернет. 🌐")
+            print(Fore.RED + "Рекомендации:")
+            print(Fore.RED + "1. Проверьте интернет-подключение")
+            print(Fore.RED + "2. Отключите VPN/Прокси")
+            print(Fore.RED + "3. Временно отключите антивирус")
+        else:
+            self.speak("Ошибка сети. Повторите попытку позже. 🔄")
+        print(Fore.RED + f"Техническая информация: {str(error)}")
 
     def process_command(self, command: str) -> None:
         for key in self.commands:
@@ -98,8 +123,12 @@ class VeronicaAssistant:
         self.speak("Я могу открывать сайты, искать информацию, говорить время и рассказывать шутки! 😊")
 
     def _open_url(self, url: str, service_name: str) -> None:
-        webbrowser.open(url)
-        self.speak(f"Открываю {service_name} 🌐")
+        try:
+            webbrowser.open(url)
+            self.speak(f"Открываю {service_name} 🌐")
+        except Exception as e:
+            self.speak(f"Не удалось открыть {service_name} 😟")
+            print(Fore.RED + f"Ошибка: {str(e)}")
 
     def _launch_browser(self, browser_name: str) -> None:
         try:
@@ -110,30 +139,46 @@ class VeronicaAssistant:
             print(Fore.RED + f"Ошибка: {str(e)}")
 
     def _play_music(self, _: str = "") -> None:
-        webbrowser.open(random.choice(self.urls['music']))
-        self.speak("Включаю музыку 🎶")
+        try:
+            webbrowser.open(random.choice(self.urls['music']))
+            self.speak("Включаю музыку 🎶")
+        except Exception as e:
+            self.speak("Не удалось включить музыку 😟")
+            print(Fore.RED + f"Ошибка: {str(e)}")
 
     def _handle_twitch(self, command: str) -> None:
-        if 'канал' in command:
-            self._open_url(self.urls['my_twitch'], "ваш Twitch")
-        else:
-            self._open_url(self.urls['twitch'], "Twitch")
+        try:
+            if 'канал' in command:
+                self._open_url(self.urls['my_twitch'], "ваш Twitch")
+            else:
+                self._open_url(self.urls['twitch'], "Twitch")
+        except Exception as e:
+            self.speak("Ошибка доступа к Twitch 😟")
+            print(Fore.RED + f"Ошибка: {str(e)}")
 
     def _search_web(self, command: str) -> None:
-        query = command.split('поиск', 1)[1].strip()
-        webbrowser.open(f"https://yandex.ru/search/?text={query}")
-        self.speak(f"Ищу в Яндексе: {query} 🔍")
+        try:
+            query = command.split('поиск', 1)[1].strip()
+            webbrowser.open(f"https://yandex.ru/search/?text={query}")
+            self.speak(f"Ищу в Яндексе: {query} 🔍")
+        except Exception as e:
+            self.speak("Не удалось выполнить поиск 😟")
+            print(Fore.RED + f"Ошибка: {str(e)}")
 
     def _tell_time(self, _: str = "") -> None:
         time = datetime.datetime.now().strftime("%H:%M")
         self.speak(f"Сейчас {time} ⏰")
 
     def _close_application(self, command: str) -> None:
-        if 'браузер' in command:
-            os.system("taskkill /im browser.exe /f")
-            self.speak("Закрываю Яндекс.Браузер 🖥️")
-        else:
-            self.speak("Не могу найти приложение для закрытия 😟")
+        try:
+            if 'браузер' in command:
+                os.system("taskkill /im browser.exe /f")
+                self.speak("Закрываю Яндекс.Браузер 🖥️")
+            else:
+                self.speak("Не могу найти приложение для закрытия 😟")
+        except Exception as e:
+            self.speak("Ошибка при закрытии приложения 😟")
+            print(Fore.RED + f"Ошибка: {str(e)}")
 
     def _tell_joke(self, _: str = "") -> None:
         jokes = [
@@ -162,4 +207,4 @@ if __name__ == "__main__":
         assistant.speak("Выключаюсь! До свидания! 👋")
     except Exception as e:
         print(Fore.RED + f"Критическая ошибка: {str(e)}")
-        assistant.speak("Произошла критическая ошибка, экстренное выключение! ⚠️")
+        assistant.speak("Произошла системная ошибка! Выключаюсь. ⚠️")
