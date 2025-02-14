@@ -3,11 +3,11 @@ import os
 import random
 import re
 import webbrowser
-from typing import Dict, List
+from typing import Dict, List, Callable
 
 import pyttsx3
 import speech_recognition as sr
-from colorama import Fore, Back, Style, init
+from colorama import Fore, init
 
 
 class VeronicaAssistant:
@@ -34,17 +34,20 @@ class VeronicaAssistant:
                 'https://www.youtube.com/watch?v=ca0775s0TxM',
                 'https://www.youtube.com/watch?v=M5QY2_8704o',
                 'https://www.youtube.com/watch?v=qwHyfcCvBFQ'
-            ]
+            ],
+            'yandex': 'https://ya.ru',
+            'yandex_browser': 'C:\\Program Files (x86)\\Yandex\\YandexBrowser\\Application\\browser.exe'
         }
 
-    def _load_commands(self) -> Dict[str, str]:
+    def _load_commands(self) -> Dict[str, Callable]:
         return {
             'привет': self._greet,
             'что ты можешь': self._show_capabilities,
-            'открой google': lambda: self._open_url('https://google.com', 'Google'),
-            'открой youtube': lambda: self._open_url('https://youtube.com', 'YouTube'),
+            'открой яндекс': lambda _: self._open_url(self.urls['yandex'], 'Яндекс'),
+            'запусти браузер': lambda _: self._launch_browser('Яндекс.Браузер'),
+            'открой youtube': lambda _: self._open_url('https://youtube.com', 'YouTube'),
             'запусти музыку': self._play_music,
-            'вк музыка': lambda: self._open_url(self.urls['vk_music'], 'ВК Музыка'),
+            'вк музыка': lambda _: self._open_url(self.urls['vk_music'], 'ВК Музыка'),
             'twitch': self._handle_twitch,
             'поиск': self._search_web,
             'время': self._tell_time,
@@ -98,6 +101,14 @@ class VeronicaAssistant:
         webbrowser.open(url)
         self.speak(f"Открываю {service_name} 🌐")
 
+    def _launch_browser(self, browser_name: str) -> None:
+        try:
+            os.startfile(self.urls['yandex_browser'])
+            self.speak(f"Запускаю {browser_name} 🌐")
+        except Exception as e:
+            self.speak(f"Не могу найти {browser_name} 😟")
+            print(Fore.RED + f"Ошибка: {str(e)}")
+
     def _play_music(self, _: str = "") -> None:
         webbrowser.open(random.choice(self.urls['music']))
         self.speak("Включаю музыку 🎶")
@@ -110,8 +121,8 @@ class VeronicaAssistant:
 
     def _search_web(self, command: str) -> None:
         query = command.split('поиск', 1)[1].strip()
-        webbrowser.open(f"https://google.com/search?q={query}")
-        self.speak(f"Ищу {query} 🔍")
+        webbrowser.open(f"https://yandex.ru/search/?text={query}")
+        self.speak(f"Ищу в Яндексе: {query} 🔍")
 
     def _tell_time(self, _: str = "") -> None:
         time = datetime.datetime.now().strftime("%H:%M")
@@ -119,8 +130,8 @@ class VeronicaAssistant:
 
     def _close_application(self, command: str) -> None:
         if 'браузер' in command:
-            os.system("taskkill /im chrome.exe /f")
-            self.speak("Закрываю браузер 🖥️")
+            os.system("taskkill /im browser.exe /f")
+            self.speak("Закрываю Яндекс.Браузер 🖥️")
         else:
             self.speak("Не могу найти приложение для закрытия 😟")
 
