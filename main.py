@@ -15,7 +15,7 @@ engine.setProperty('volume', 0.9)
 
 # Инициализация модели Vosk
 model = Model("vosk-model-small-ru-0.22")
-recognizer = KaldiRecognizer(model, 16000)
+recognizer = KaldiRecognizer(model, 48000)
 
 API_KEY = "sk-1be11ebf4d8942f59804f01b9fe4feac"
 API_URL = "https://api.deepseek.com/process"
@@ -25,12 +25,13 @@ def speak(text):
     engine.runAndWait()
 
 # Функция для распознавания речи
-
 def listen_command():
+    r = sr.Recognizer()
     mic = sr.Microphone()
     with mic as source:
+        r.adjust_for_ambient_noise(source)
         print("Слушаю...")
-        audio = sr.Recognizer().listen(source)
+        audio = r.listen(source)
     
     data = audio.get_wav_data()
     if recognizer.AcceptWaveform(data):
@@ -39,7 +40,6 @@ def listen_command():
     return ""
 
 # Функция для обработки текста через DeepSeek API
-
 def process_text_with_deepseek(text):
     headers = {
         "Authorization": f"Bearer {API_KEY}",
@@ -59,7 +59,6 @@ def process_text_with_deepseek(text):
         return f"Ошибка запроса: {str(e)}"
 
 # Функция для рассказа шуток
-
 def tell_joke():
     jokes = [
         "Почему программисты не ходят в лес? Потому что там много багов.",
@@ -68,8 +67,25 @@ def tell_joke():
     ]
     speak(random.choice(jokes))
 
-# Обработка команд
+# Функция для получения текущего времени
+def get_current_time():
+    now = datetime.datetime.now()
+    speak(f"Сейчас {now.hour} часов и {now.minute} минут.")
 
+# Функция для открытия приложения
+def open_application(app_name):
+    if app_name == 'блокнот':
+        os.system('notepad.exe')
+        speak("Блокнот открыт.")
+    else:
+        speak(f"Не могу открыть приложение {app_name}.")
+
+# Функция для завершения работы программы
+def close_program():
+    speak("Завершаю работу. До свидания!")
+    exit()
+
+# Обработка команд
 def process_command(command):
     if 'привет' in command:
         speak("Привет! Как я могу помочь?")
@@ -79,6 +95,13 @@ def process_command(command):
         webbrowser.open(f"https://ya.ru//search?q={query}")
     elif 'расскажи шутку' in command:
         tell_joke()
+    elif 'время' in command:
+        get_current_time()
+    elif 'открыть' in command:
+        app_name = command.replace('открыть', '').strip()
+        open_application(app_name)
+    elif 'закрыть программу' in command:
+        close_program()
     else:
         deepseek_result = process_text_with_deepseek(command)
         speak(f"DeepSeek отвечает: {deepseek_result}")
